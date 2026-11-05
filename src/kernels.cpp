@@ -43,7 +43,15 @@ Matrix multiply_reordered(const Matrix& a, const Matrix& b) {
     check_shapes(a, b);
     // TODO(Will): same result as naive, but loop i, then p, then j.
     // Then add {"reordered", multiply_reordered} to kernels() below.
-    throw std::logic_error("multiply_reordered is not implemented yet");
+    Matrix c(a.rows(), b.cols());
+    for (std::size_t i = 0; i < a.rows(); i++) {
+        for (std::size_t p = 0; p < a.cols(); p++) {
+            for (std::size_t j = 0; j < b.cols(); j++) {
+                c(i, j) += a(i, p) * b(p, j);
+            }
+        }
+    }
+    return c;
 }
 
 Matrix multiply_blocked(const Matrix& a, const Matrix& b, std::size_t block) {
@@ -63,7 +71,7 @@ Matrix multiply_blocked(const Matrix& a, const Matrix& b, std::size_t block) {
 const std::vector<Kernel>& kernels() {
     static const std::vector<Kernel> all = {
         {"naive", multiply_naive},
-        // {"reordered", multiply_reordered},
+        {"reordered", multiply_reordered},
         // multiply_blocked takes an extra `block` argument, so wrap it in a
         // capture-less lambda, which converts to a plain function pointer:
         // {"blocked64", [](const Matrix& a, const Matrix& b) { return multiply_blocked(a, b, 64); }},
