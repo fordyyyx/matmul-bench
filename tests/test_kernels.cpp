@@ -117,13 +117,18 @@ TEST(MatrixTest, BinaryRoundTrip) {
 }
 
 TEST(MatrixTest, StridePadding) {
-    // Rounded up to a multiple of 16 floats (one 64-byte cache line).
-    EXPECT_EQ(Matrix(1, 7).stride(), 16u);
-    EXPECT_EQ(Matrix(1, 16).stride(), 16u);
-    EXPECT_EQ(Matrix(1, 4000).stride(), 4000u);  // already a multiple of 16: unchanged
-    EXPECT_EQ(Matrix(1, 4100).stride(), 4112u);
-    // A multiple of 1024 floats (rows a multiple of 4 KB apart) gets one extra
-    // cache line, so tile rows stop mapping to the same cache sets.
-    EXPECT_EQ(Matrix(1, 1024).stride(), 1040u);
-    EXPECT_EQ(Matrix(1, 4096).stride(), 4112u);
+    #ifdef MATMUL_PAD_ROWS
+        // Rounded up to a multiple of 16 floats (one 64-byte cache line).
+        EXPECT_EQ(Matrix(1, 7).stride(), 16u);
+        EXPECT_EQ(Matrix(1, 16).stride(), 16u);
+        EXPECT_EQ(Matrix(1, 4000).stride(), 4000u);  // already a multiple of 16: unchanged
+        EXPECT_EQ(Matrix(1, 4100).stride(), 4112u);
+        // A multiple of 1024 floats (rows a multiple of 4 KB apart) gets one extra
+        // cache line, so tile rows stop mapping to the same cache sets.
+        EXPECT_EQ(Matrix(1, 1024).stride(), 1040u);
+        EXPECT_EQ(Matrix(1, 4096).stride(), 4112u);
+    #else
+        EXPECT_EQ(Matrix(1, 7).stride(), 7u);
+        EXPECT_EQ(Matrix(1, 4096).stride(), 4096u);
+    #endif
 }

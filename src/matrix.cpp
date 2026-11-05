@@ -9,11 +9,15 @@ namespace matmul {
 
 namespace {
     std::size_t padded_stride(std::size_t cols) {
-        std::size_t stride = (cols + 15) / 16 * 16;
-        if (stride % 1024 == 0) {
-            return stride + 16;
-        }
-        return stride;
+        #ifdef MATMUL_PAD_ROWS
+            std::size_t stride = (cols + 15) / 16 * 16;
+            if (stride % 1024 == 0) {
+                return stride + 16;
+            }
+            return stride;
+        #else
+            return cols;
+        #endif
     }
 } // namespace
 

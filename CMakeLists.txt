@@ -12,6 +12,7 @@ endif()
 
 option(MATMUL_NATIVE "Tune for this machine's CPU (-march=native). Off in CI." OFF)
 option(MATMUL_BUILD_TESTS "Build the GoogleTest suite" ON)
+option(MATMUL_PAD_ROWS "Pad matrix rows so the row stride is never a multiple of 4 KB" ON)
 
 function(matmul_warnings target)
   if(MSVC)
@@ -27,6 +28,10 @@ target_include_directories(matmul PUBLIC include)
 matmul_warnings(matmul)
 if(MATMUL_NATIVE AND NOT MSVC)
   target_compile_options(matmul PRIVATE -march=native)
+endif()
+
+if(MATMUL_PAD_ROWS)
+  target_compile_definitions(matmul PUBLIC MATMUL_PAD_ROWS)
 endif()
 
 # Command-line tool: list kernels, benchmark one, or multiply matrices from files.
