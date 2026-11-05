@@ -42,9 +42,15 @@ TEST_P(KernelTest, KnownSmallProduct) {
     Matrix b(3, 2);
     const float av[] = {1, 2, 3, 4, 5, 6};
     const float bv[] = {7, 8, 9, 10, 11, 12};
-    for (std::size_t i = 0; i < 6; ++i) {
-        a.data()[i] = av[i];
-        b.data()[i] = bv[i];
+    for (std::size_t i = 0; i < 2; ++i) {
+        for (std::size_t j = 0; j < 3; ++j) {
+            a(i, j) = av[i * a.cols() + j];
+        }
+    }
+    for (std::size_t i = 0; i < 3; ++i) {
+        for (std::size_t j = 0; j < 2; ++j) {
+            b(i, j) = bv[i * b.cols() + j];
+        }
     }
     const Matrix c = GetParam().fn(a, b);
     expect_same_shape(c, 2, 2);

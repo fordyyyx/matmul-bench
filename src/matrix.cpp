@@ -7,8 +7,18 @@
 
 namespace matmul {
 
+namespace {
+    std::size_t padded_stride(std::size_t cols) {
+        std::size_t stride = (cols + 15) / 16 * 16;
+        if (stride % 1024 == 0) {
+            return stride + 16;
+        }
+        return stride;
+    }
+} // namespace
+
 Matrix::Matrix(std::size_t rows, std::size_t cols, float fill)
-    : rows_(rows), cols_(cols), data_(rows * stride_, fill), stride_(cols + (cols % 16)) {}
+    : rows_(rows), cols_(cols), stride_(padded_stride(cols)), data_(rows * stride_, fill) {}
 
 Matrix Matrix::identity(std::size_t n) {
     Matrix m(n, n);
@@ -39,8 +49,10 @@ void save_binary(const Matrix& m, const std::string& path) {
     }
     const std::uint64_t shape[2] = {m.rows(), m.cols()};
     out.write(reinterpret_cast<const char*>(shape), sizeof(shape));
-    out.write(reinterpret_cast<const char*>(m.data()),
-              static_cast<std::streamsize>(m.rows() * m.cols() * sizeof(float)));
+    for (std::size_t i = 0; i < m.rows(); i++) {
+        out.write(reinterpret_cast<const char*>(m.data() + i * m.stride()),
+            static_cast<std::streamsize>(m.cols() * sizeof(float)));
+    }
 }
 
 Matrix load_binary(const std::string& path) {
@@ -51,8 +63,10 @@ Matrix load_binary(const std::string& path) {
     std::uint64_t shape[2] = {0, 0};
     in.read(reinterpret_cast<char*>(shape), sizeof(shape));
     Matrix m(static_cast<std::size_t>(shape[0]), static_cast<std::size_t>(shape[1]));
-    in.read(reinterpret_cast<char*>(m.data()),
+    for (std::size_t i = 0; i < m.rows(); i++) {
+        in.read(reinterpret_cast<char*>(m.data()),
             static_cast<std::streamsize>(m.rows() * m.cols() * sizeof(float)));
+    }
     if (!in) {
         throw std::runtime_error("file too short for its header: " + path);
     }

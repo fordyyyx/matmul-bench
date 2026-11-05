@@ -29,18 +29,13 @@ public:
     // Uniform values in [-1, 1]; the same seed always gives the same matrix.
     static Matrix random(std::size_t rows, std::size_t cols, unsigned seed);
 
-    std::size_t stride() { 
-        if (stride_ % 1024 == 0) {
-            return stride_ + 16;
-        }
-        return stride_; 
-    }
+    std::size_t stride() const { return stride_; }
 
 private:
     std::size_t rows_;
     std::size_t cols_;
-    std::vector<float> data_;
     std::size_t stride_;
+    std::vector<float> data_;
 };
 
 // File format shared with the Python tests: two little-endian uint64 values
