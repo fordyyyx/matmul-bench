@@ -40,6 +40,7 @@
 
 # Build directories
 build/
+out/
 Build/
 build-*/
 
@@ -66,3 +67,14 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# Python harness
+__pychache__/
+.venv/
+.pytest_cache/
+
+# Benchmark output
+results/*.csv
+
+# Editor
+.vscode/
