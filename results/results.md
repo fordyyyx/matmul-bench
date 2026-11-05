@@ -269,3 +269,80 @@ GFLOP/s already divides by the work (2n³), so the three sizes compare directly.
   slowdown disappears.
 - Rerun `blocked512` vs `blocked1024` at n=2048 (the first open question from
   Run 4).
+
+## Run 6: row padding, padded vs unpadded (2026-11-05)
+
+Tests the fix proposed in Run 5: give `Matrix` a row stride separate from `cols`,
+and pad rows so the stride is never a multiple of 4 KB.
+
+**Setup**
+
+Same machine and compiler as Run 1. Two builds of the same commit, differing only
+in `MATMUL_PAD_ROWS`.
+
+| | |
+|---|---|
+| Commit | `2dc0520` (working copy clean) |
+| Padded build | `build/`: `MATMUL_PAD_ROWS=ON`, `MATMUL_NATIVE=ON`, Release |
+| Unpadded build | `build-nopad/`: `MATMUL_PAD_ROWS=OFF`, `MATMUL_NATIVE=ON`, Release |
+| Padding rule | Round the stride up to a multiple of 16 floats (one 64-byte cache line); if the result is a multiple of 1024 floats (4 KB), add another 16 |
+| Kernel | `blocked256` |
+| Repeats | 5 per point, plus 1 warm-up. The two builds were run alternately at each size so drift affects both equally. |
+| Correctness | Both builds pass all 50 C++ tests and 33 Python checks |
+
+**Strides used**
+
+| n | padded stride (floats) | unpadded stride (floats) |
+|---|---|---|
+| 1024 | 1040 | 1024 |
+| 2048 | 2064 | 2048 |
+| 4000 | 4000 | 4000 |
+| 4096 | 4112 | 4096 |
+| 4100 | 4112 | 4100 |
+
+**Results (blocked256, GFLOP/s, higher is better)**
+
+| n | padded | unpadded | padded vs unpadded |
+|---|---|---|---|
+| 1024 | 38.14 | 39.16 | ×0.97 |
+| 2048 | 37.53 | 36.34 | ×1.03 |
+| 4000 | 36.98 | 37.13 | ×1.00 |
+| 4096 | **37.03** | 18.90 | **×1.96** |
+| 4100 | **36.27** | 31.75 | **×1.14** |
+
+**Median times (ms)**
+
+| n | padded | unpadded |
+|---|---|---|
+| 1024 | 56.31 | 54.84 |
+| 2048 | 457.76 | 472.81 |
+| 4000 | 3461.48 | 3447.26 |
+| 4096 | 3711.45 | 7272.46 |
+| 4100 | 3800.10 | 4341.37 |
+
+**Observations**
+
+- Padding fixes the n=4096 slowdown. The padded build runs at 37.0 GFLOP/s, against
+  18.9 unpadded (×1.96), and takes 3.7 s instead of 7.3 s. It now matches n=4000
+  (37.0 GFLOP/s), so the power-of-two outlier from Run 5 is gone.
+- n=4100 also improves (31.8 to 36.3 GFLOP/s, ×1.14). Its unpadded stride of 4100
+  floats is only 16 bytes off a multiple of 4 KB, so it suffered part of the same
+  effect. The padded stride of 4112 floats moves each row by a full cache line.
+- Where the unpadded stride was already fine, padding changes nothing: n=4000 gets
+  the same stride in both builds and the same speed.
+- At n=1024 and n=2048, padding changes the stride but not the speed (within 3%,
+  inside run-to-run noise). Their unpadded rows are also multiples of 4 KB apart,
+  yet they showed no slowdown in Runs 3 and 4. So the conflict effect depends on
+  more than the stride being a multiple of 4 KB, probably how many tile rows map
+  to the same cache sets at each size. Not investigated further here.
+- With padding, `blocked256` holds 36-39 GFLOP/s from n=1024 to n=4100, roughly
+  flat across a 64x increase in work per multiply.
+- This supports the conflict-miss explanation from Run 5: changing only where rows
+  start in memory, with identical arithmetic and kernel code, halves the run time
+  at n=4096. Cache misses still have not been measured directly.
+
+**Next**
+
+- Rerun `blocked512` vs `blocked1024` at n=2048 (open since Run 4).
+- Measure cache misses directly (e.g. `perf stat` under WSL) to confirm the
+  conflict-miss explanation, rather than inferring it from timings.
