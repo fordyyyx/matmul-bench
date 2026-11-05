@@ -148,3 +148,62 @@ Same machine, compiler and build settings as Run 1.
 - The trend had not peaked at 256. Try 512 and 1024 to find where it turns over.
 - Try non-square tiles, for example small in i and p but the full width in j, to
   give the inner loop the longest possible contiguous run.
+
+## Run 4: larger blocks, and n=4096 (2026-11-05)
+
+**Setup**
+
+Same machine, compiler and build settings as Run 1.
+
+| | |
+|---|---|
+| Commit | `960beec` plus registry entries for `blocked512` and `blocked1024` in `src/kernels.cpp`, added for this run. Kernel code unchanged from Run 2. |
+| Kernels | `reordered` (reference), `multiply_blocked` with square tiles of 256, 512 and 1024 |
+| Sizes | n = 1024, 2048, 4096. n=4096 was added so that the large tiles still split the matrix into several tiles. |
+| Repeats | 5 per point, plus 1 warm-up |
+| Correctness | All block sizes pass the full C++ and Python test suites |
+
+**Results (GFLOP/s, higher is better)**
+
+| n | reordered | blocked256 | blocked512 | blocked1024 |
+|---|---|---|---|---|
+| 1024 | 30.10 | **40.43** | 38.17 | 29.29 |
+| 2048 | 21.39 | **36.82** | 24.70 | 27.53 |
+| 4096 | 8.40 | 22.21 | **22.93** | 21.47 |
+
+**Median times (ms)**
+
+| n | reordered | blocked256 | blocked512 | blocked1024 |
+|---|---|---|---|---|
+| 1024 | 71.34 | 53.12 | 56.27 | 73.33 |
+| 2048 | 803.10 | 466.56 | 695.59 | 624.01 |
+| 4096 | 16366.10 | 6186.81 | 5992.97 | 6401.58 |
+
+**Observations**
+
+- The best block size for this machine is about 256. It is fastest at n=1024 and
+  n=2048. At n=4096, `blocked512` is 3% ahead, which is within run-to-run noise.
+  Together with Run 3 (32 to 256 rising steadily), performance peaks at 256 and
+  falls off above it.
+- Going larger costs performance. At n=2048, `blocked512` falls to 24.7 GFLOP/s,
+  a third below `blocked256`. A 512 x 512 tile is 1 MB, so one tile each of A, B
+  and C (3 MB) probably no longer fits in the cache level that 256 x 256 tiles
+  benefit from. Not yet measured; cache sizes for this CPU have not been checked.
+- `blocked1024` at n=1024 is a single tile covering the whole matrix, so it is
+  `reordered` with extra loop overhead. As expected, it matches `reordered`
+  (29.3 vs 30.1 GFLOP/s).
+- At n=4096 blocking matters most: `reordered` collapses to 8.4 GFLOP/s (16.4 s
+  per multiply) and every blocked kernel is about ×2.6 faster.
+- `reordered` and `blocked256` agree with Run 3 to within about 5% at n=1024 and
+  n=2048.
+
+**Open questions**
+
+- At n=2048, `blocked1024` (27.5) beat `blocked512` (24.7), against the overall
+  trend. This is a single run on a CPU with mixed performance and efficiency
+  cores, so rerun both before drawing conclusions.
+- Even `blocked256` drops from 36.8 GFLOP/s at n=2048 to 22.2 at n=4096. A likely
+  cause: at n=4096 each row is exactly 16 KB, a power of two, so the rows of a
+  tile can map to the same cache sets and evict each other (cache conflict
+  misses). Not yet tested. Comparing n=4000 or n=4100 against n=4096 would
+  confirm or rule it out.

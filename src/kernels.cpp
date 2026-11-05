@@ -91,6 +91,8 @@ const std::vector<Kernel>& kernels() {
         {"blocked64", [](const Matrix& a, const Matrix& b) { return multiply_blocked(a, b, 64); }},
         {"blocked128", [](const Matrix& a, const Matrix& b) { return multiply_blocked(a, b, 128); }},
         {"blocked256", [](const Matrix& a, const Matrix& b) { return multiply_blocked(a, b, 256); }},
+        {"blocked512", [](const Matrix& a, const Matrix& b) { return multiply_blocked(a, b, 512); }},
+        {"blocked1024", [](const Matrix& a, const Matrix& b) { return multiply_blocked(a, b, 1024); }},
     };
     return all;
 }
