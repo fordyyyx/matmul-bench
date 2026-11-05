@@ -9,7 +9,7 @@ namespace matmul {
 // Dense matrix of floats in row-major order: all elements live in ONE
 // contiguous block, row after row, so element (i, j) is data[i * stride + j].
 // Walking along a row touches neighbouring memory; walking down a column
-// jumps `cols` floats at a time. That difference is what the kernels exploit.
+// jumps `stride` floats at a time. That difference is what the kernels exploit.
 class Matrix {
 public:
     Matrix(std::size_t rows, std::size_t cols, float fill = 0.0f);

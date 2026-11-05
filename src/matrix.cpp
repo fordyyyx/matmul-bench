@@ -64,8 +64,8 @@ Matrix load_binary(const std::string& path) {
     in.read(reinterpret_cast<char*>(shape), sizeof(shape));
     Matrix m(static_cast<std::size_t>(shape[0]), static_cast<std::size_t>(shape[1]));
     for (std::size_t i = 0; i < m.rows(); i++) {
-        in.read(reinterpret_cast<char*>(m.data()),
-            static_cast<std::streamsize>(m.rows() * m.cols() * sizeof(float)));
+        in.read(reinterpret_cast<char*>(m.data() + i * m.stride()),
+            static_cast<std::streamsize>(m.cols() * sizeof(float)));
     }
     if (!in) {
         throw std::runtime_error("file too short for its header: " + path);
