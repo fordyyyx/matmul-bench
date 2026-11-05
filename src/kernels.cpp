@@ -54,7 +54,7 @@ Matrix multiply_reordered(const Matrix& a, const Matrix& b) {
 Matrix multiply_blocked(const Matrix& a, const Matrix& b, std::size_t block) {
     check_shapes(a, b);
     if (block == 0) {
-        throw std::invalid_argument("block must not be 0")
+        throw std::invalid_argument("block must not be 0");
     }
     Matrix c(a.rows(), b.cols());
     for (std::size_t i0 = 0; i0 < a.rows(); i0 += block) {
