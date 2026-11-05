@@ -8,7 +8,7 @@
 namespace matmul {
 
 Matrix::Matrix(std::size_t rows, std::size_t cols, float fill)
-    : rows_(rows), cols_(cols), data_(rows * cols, fill) {}
+    : rows_(rows), cols_(cols), data_(rows * stride_, fill), stride_(cols + (cols % 16)) {}
 
 Matrix Matrix::identity(std::size_t n) {
     Matrix m(n, n);
@@ -22,8 +22,10 @@ Matrix Matrix::random(std::size_t rows, std::size_t cols, unsigned seed) {
     std::mt19937 gen(seed);
     std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
     Matrix m(rows, cols);
-    for (std::size_t i = 0; i < rows * cols; ++i) {
-        m.data()[i] = dist(gen);
+    for (std::size_t i = 0; i < rows; ++i) {
+        for (std::size_t j = 0; j < cols; j++) {
+            m(i, j) = dist(gen);
+        }
     }
     return m;
 }
