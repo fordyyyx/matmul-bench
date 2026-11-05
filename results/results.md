@@ -31,6 +31,7 @@ GFLOP/s = 2n³ / median time.
 - `naive` falls from 2.8 to 0.85 GFLOP/s between n=512 and n=1024. Its inner loop
   reads B down a column, a 4 KB jump per step at n=1024, so once B no longer fits
   in cache almost every read waits on main memory.
+  > **Corrected in Run 9:** with row padding, `naive` runs at 4.2 GFLOP/s at n=1024 (×4.8), so this drop was mainly conflict misses from the exact 4 KB stride, not B outgrowing the cache.
 - `reordered` (i-k-j) walks rows of B and C contiguously, so each cache line it
   loads is fully used, and the compiler can vectorise the inner loop (AVX2).
   `naive`'s inner loop adds into a single running total, which the compiler may
@@ -493,3 +494,76 @@ Same machine and compiler as Run 1.
 - Rerun 64 vs 128 at n=1024 and n=2048 over several rounds.
 - Measure cache misses directly (e.g. `perf stat` under WSL) to confirm the
   conflict-miss vs capacity explanation.
+
+## Run 9: README sweep, and naive with padding (2026-11-05)
+
+The data behind the README chart, collected by `python/sweep.py`, plus a check
+on two unexpected numbers from the sweep's first attempt.
+
+**Setup**
+
+Same machine and compiler as Run 1.
+
+| | |
+|---|---|
+| Commit | `bd13292` for all C++ code (unchanged). `python/sweep.py` and `python/plot.py` are new and not yet committed. |
+| Builds | `build/` (`MATMUL_PAD_ROWS=ON`) and `build-nopad/` (`MATMUL_PAD_ROWS=OFF`), both `MATMUL_NATIVE=ON`, Release |
+| Series | `blocked512` on both builds; `reordered` and `naive` on the padded build; `naive` on the unpadded build (table only) |
+| Sizes | n = 256, 512, 1024, 1536, 2048, 3072, 4000, 4096 (`naive` up to 1024) |
+| Repeats | 3 per point, plus 1 warm-up per point |
+| Raw data | `results/readme_sweep.csv` |
+| Later rebuild | After this run, both builds were relinked with `-static` (MinGW), so the executables no longer load whichever `libstdc++-6.dll` is first on PATH; Git for Windows' copy crashed `matmul_bench multiply`. The kernels do not call into that library: a spot-check after relinking matched this run to within 2% (`blocked512` n=2048 41.18, `reordered` n=1024 30.00, `naive` n=1024 4.17, unpadded `blocked512` n=4096 23.92). |
+
+**First attempt discarded.** The first version of `sweep.py` ran each series
+in full before the next. Its first series, padded `blocked512`, came out at
+about 29 GFLOP/s at n=256-1024, against 41.5 at n=1024 in Run 8. A recheck over
+3 rounds put padded `blocked512` at 40.7-43.0 (n=512) and 40.1-40.8 (n=1024),
+so the low figures were a measurement artefact affecting whichever series ran
+first (most likely the CPU not yet at full clock). `sweep.py` now runs a
+discarded warm-up benchmark first and interleaves the series at each size. The
+results below are from the corrected script.
+
+**Check: naive at n=1024, padded vs unpadded (3 rounds)**
+
+| Build | Round 1 | Round 2 | Round 3 |
+|---|---|---|---|
+| padded | 4.21 | 4.18 | 4.12 |
+| unpadded | 0.88 | 0.84 | 0.88 |
+
+**Results (GFLOP/s, higher is better)**
+
+| n | naive (padded) | naive (unpadded) | reordered | blocked512 (unpadded) | blocked512 (padded) |
+|---|---|---|---|---|---|
+| 256 | 2.52 | 2.53 | 31.77 | 32.33 | 32.27 |
+| 512 | 2.78 | 2.79 | 44.83 | 43.09 | 43.57 |
+| 1024 | 4.08 | 0.86 | 30.60 | 39.30 | 41.13 |
+| 1536 | | | 30.84 | 40.74 | 39.98 |
+| 2048 | | | 21.41 | 23.94 | 40.96 |
+| 3072 | | | 11.12 | 38.45 | 40.63 |
+| 4000 | | | 10.76 | 40.01 | 39.72 |
+| 4096 | | | 10.63 | 23.90 | 40.52 |
+
+**Observations**
+
+- Padding speeds `naive` up ×4.8 at n=1024 (4.1 against 0.86 GFLOP/s,
+  consistent across 3 rounds). Its inner loop walks down a column of B; without
+  padding each step is exactly 4 KB, so successive reads map to the same cache
+  sets. This corrects the Run 1 explanation, which put the drop down to B not
+  fitting in cache. With padding, `naive` is faster at n=1024 than at n=512.
+- At n=256 and 512, padding makes no difference to `naive` (strides of 256 and
+  512 floats are under 4 KB, and padding only rounds them to the same values).
+- Padded `blocked512` holds 39.7-43.6 GFLOP/s from n=512 to n=4096, consistent
+  with Run 8.
+- Unpadded `blocked512` dips only at n=2048 and n=4096 (about 24 GFLOP/s). n=3072
+  is also a multiple of 4 KB per row (12 KB) but runs at 38.5: three times a
+  power of two spreads rows across sets better than an exact power of two does.
+  Inferred, not measured.
+- Padding makes no measurable difference to `blocked512` where the unpadded
+  stride is already fine (n=1536 and n=4000, within 1 GFLOP/s).
+- `reordered` falls from 44.8 GFLOP/s at n=512 to 10.6 at n=4096, consistent
+  with Runs 5 and 8.
+
+**Next**
+
+- Confirm vectorisation from compiler reports (`-fopt-info-vec`).
+- Measure cache misses with a profiler.

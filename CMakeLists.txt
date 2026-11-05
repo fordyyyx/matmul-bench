@@ -14,6 +14,13 @@ option(MATMUL_NATIVE "Tune for this machine's CPU (-march=native). Off in CI." O
 option(MATMUL_BUILD_TESTS "Build the GoogleTest suite" ON)
 option(MATMUL_PAD_ROWS "Pad matrix rows so the row stride is never a multiple of 4 KB" ON)
 
+# MinGW: link the C++ runtime statically, so the executables don't load whichever
+# libstdc++-6.dll comes first on PATH. Git for Windows ships an incompatible copy
+# in /mingw64/bin, which crashes file I/O when it shadows the compiler's own.
+if(MINGW)
+  add_link_options(-static)
+endif()
+
 function(matmul_warnings target)
   if(MSVC)
     target_compile_options(${target} PRIVATE /W4)

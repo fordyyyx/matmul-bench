@@ -1,0 +1,31 @@
+label,build,kernel,n,repeats,median_ms,gflops
+blocked512 (padded),build,blocked512,256,3,1.0398,32.2701
+blocked512 (unpadded),build-nopad,blocked512,256,3,1.0378,32.3323
+reordered,build,reordered,256,3,1.0563,31.766
+naive,build,naive,256,3,13.3176,2.51956
+naive (unpadded),build-nopad,naive,256,3,13.2374,2.53482
+blocked512 (padded),build,blocked512,512,3,6.1613,43.568
+blocked512 (unpadded),build-nopad,blocked512,512,3,6.23,43.0876
+reordered,build,reordered,512,3,5.9879,44.8296
+naive,build,naive,512,3,96.4124,2.78424
+naive (unpadded),build-nopad,naive,512,3,96.3236,2.78681
+blocked512 (padded),build,blocked512,1024,3,52.2111,41.1308
+blocked512 (unpadded),build-nopad,blocked512,1024,3,54.6484,39.2964
+reordered,build,reordered,1024,3,70.1799,30.5997
+naive,build,naive,1024,3,526.657,4.07758
+naive (unpadded),build-nopad,naive,1024,3,2484.83,0.864238
+blocked512 (padded),build,blocked512,1536,3,181.3,39.9767
+blocked512 (unpadded),build-nopad,blocked512,1536,3,177.899,40.741
+reordered,build,reordered,1536,3,234.974,30.845
+blocked512 (padded),build,blocked512,2048,3,419.457,40.9574
+blocked512 (unpadded),build-nopad,blocked512,2048,3,717.608,23.9405
+reordered,build,reordered,2048,3,802.513,21.4076
+blocked512 (padded),build,blocked512,3072,3,1426.93,40.6342
+blocked512 (unpadded),build-nopad,blocked512,3072,3,1507.86,38.4531
+reordered,build,reordered,3072,3,5212.27,11.1241
+blocked512 (padded),build,blocked512,4000,3,3222.44,39.7215
+blocked512 (unpadded),build-nopad,blocked512,4000,3,3199.07,40.0116
+reordered,build,reordered,4000,3,11897.8,10.7583
+blocked512 (padded),build,blocked512,4096,3,3392.24,40.5157
+blocked512 (unpadded),build-nopad,blocked512,4096,3,5751.17,23.8976
+reordered,build,reordered,4096,3,12933.7,10.6264
