@@ -46,3 +46,53 @@ GFLOP/s = 2n³ / median time.
   as noise.
 - Vectorisation is inferred from the size of the speed-up and not yet confirmed.
   A `-fopt-info-vec` build or a run with `MATMUL_NATIVE=OFF` would confirm it.
+
+## Run 2: adding the blocked kernel (2026-11-05)
+
+**Setup**
+
+Same machine, compiler and build settings as Run 1.
+
+| | |
+|---|---|
+| Commit | `9829877`. The run used the same kernel loops just before the `block == 0` input check was added; that check runs once per call and does not affect timing. |
+| Kernels | `naive`, `reordered`, `blocked64` (`multiply_blocked` with 64 x 64 tiles) |
+| Repeats | 3 per size, plus 1 warm-up |
+| Note | `naive` skipped at n=2048 (about 10 s per run) |
+
+**Results (GFLOP/s, higher is better)**
+
+| n | naive | reordered | blocked64 | blocked64 vs reordered |
+|---|---|---|---|---|
+| 256 | 2.53 | **31.26** | 26.83 | ×0.86 |
+| 512 | 2.78 | **40.96** | 31.84 | ×0.78 |
+| 1024 | 0.84 | 28.45 | **31.04** | ×1.09 |
+| 2048 | n/a | 20.51 | **29.13** | ×1.42 |
+
+**Median times (ms)**
+
+| n | naive | reordered | blocked64 |
+|---|---|---|---|
+| 256 | 13.24 | 1.07 | 1.25 |
+| 512 | 96.43 | 6.55 | 8.43 |
+| 1024 | 2559.71 | 75.47 | 69.18 |
+| 2048 | n/a | 837.53 | 589.76 |
+
+**Observations**
+
+- Blocking is slower on small matrices. At n=256 and n=512 all three matrices
+  already fit in cache, so `reordered` is not waiting on memory and blocking has
+  nothing to fix. Its only effect is overhead: three extra loops, and an inner `j`
+  loop cut to 64 elements, so the vectorised loop's setup and remainder handling
+  run once per tile instead of once per row.
+- Blocking wins once the data outgrows the cache. `reordered` falls from 41 to
+  20.5 GFLOP/s between n=512 and n=2048, while `blocked64` stays roughly flat at
+  29-31 GFLOP/s from n=512 to n=2048: each 64 x 64 tile (16 KB) is reused while it
+  is still in cache, whatever the total matrix size.
+- `naive` and `reordered` numbers agree with Run 1 to within a few percent,
+  which gives a rough idea of run-to-run noise on this laptop.
+
+**Next**
+
+- 64 was a first guess. Sweep block sizes (e.g. 32, 128, 256) at n=1024 and
+  n=2048 to find the best tile size for this CPU.
