@@ -80,6 +80,7 @@ def test_kernel_matches_numpy(kernel: str, shape: tuple[int, int, int], tmp_path
         [str(EXE), "multiply", kernel, str(paths["a"]), str(paths["b"]), str(paths["c"])],
         capture_output=True,
         text=True,
+        timeout=60,  # a hung kernel fails the test instead of freezing pytest
     )
     assert result.returncode == 0, result.stderr
 

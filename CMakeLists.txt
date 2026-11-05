@@ -50,5 +50,7 @@ if(MATMUL_BUILD_TESTS)
   matmul_warnings(matmul_tests)
 
   include(GoogleTest)
-  gtest_discover_tests(matmul_tests)
+  # A kernel bug such as an infinite loop then fails the test after 30 s
+  # instead of hanging ctest forever.
+  gtest_discover_tests(matmul_tests PROPERTIES TIMEOUT 30)
 endif()

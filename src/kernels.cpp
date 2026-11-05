@@ -26,7 +26,17 @@ Matrix multiply_naive(const Matrix& a, const Matrix& b) {
     check_shapes(a, b);
     // TODO(Will): create an a.rows() x b.cols() result, then the i-j-k loop:
     //   for each row i of A, for each column j of B, sum over p of A(i,p) * B(p,j).
-    throw std::logic_error("multiply_naive is not implemented yet");
+    Matrix c(a.rows(), b.cols());
+    for (std::size_t i = 0 ; i < a.rows() ; i++) {
+        for (std::size_t j = 0 ; j < b.cols() ; j++) {
+            float sum = 0.0f;
+            for (std::size_t p = 0 ; p < a.cols() ; p++) {
+                sum += a(i, p) * b(p, j);
+            }
+            c(i, j) = sum;
+        }
+    }
+    return c;
 }
 
 Matrix multiply_reordered(const Matrix& a, const Matrix& b) {
