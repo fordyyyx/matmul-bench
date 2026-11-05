@@ -87,7 +87,10 @@ const std::vector<Kernel>& kernels() {
         {"reordered", multiply_reordered},
         // multiply_blocked takes an extra `block` argument, so wrap it in a
         // capture-less lambda, which converts to a plain function pointer:
+        {"blocked32", [](const Matrix& a, const Matrix& b) { return multiply_blocked(a, b, 32); }},
         {"blocked64", [](const Matrix& a, const Matrix& b) { return multiply_blocked(a, b, 64); }},
+        {"blocked128", [](const Matrix& a, const Matrix& b) { return multiply_blocked(a, b, 128); }},
+        {"blocked256", [](const Matrix& a, const Matrix& b) { return multiply_blocked(a, b, 256); }},
     };
     return all;
 }

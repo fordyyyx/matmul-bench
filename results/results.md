@@ -96,3 +96,55 @@ Same machine, compiler and build settings as Run 1.
 
 - 64 was a first guess. Sweep block sizes (e.g. 32, 128, 256) at n=1024 and
   n=2048 to find the best tile size for this CPU.
+
+## Run 3: block-size sweep (2026-11-05)
+
+**Setup**
+
+Same machine, compiler and build settings as Run 1.
+
+| | |
+|---|---|
+| Commit | `0517064` plus registry entries for `blocked32`, `blocked128` and `blocked256` in `src/kernels.cpp`, added for this run. Kernel code unchanged from Run 2. |
+| Kernels | `reordered` (reference), `multiply_blocked` with square tiles of 32, 64, 128 and 256 |
+| Repeats | **5** per point, plus 1 warm-up (Runs 1 and 2 used 3) |
+| Correctness | All four block sizes pass the full C++ and Python test suites, including the 1, 7, 65 and 129 sizes that leave partial edge tiles |
+
+**Results (GFLOP/s, higher is better)**
+
+| n | reordered | blocked32 | blocked64 | blocked128 | blocked256 |
+|---|---|---|---|---|---|
+| 512 | 42.96 | 25.32 | 32.06 | 39.15 | **44.60** |
+| 1024 | 28.97 | 24.68 | 31.92 | 35.44 | **38.45** |
+| 2048 | 20.49 | 24.31 | 28.88 | 32.82 | **37.19** |
+
+**Median times (ms)**
+
+| n | reordered | blocked32 | blocked64 | blocked128 | blocked256 |
+|---|---|---|---|---|---|
+| 512 | 6.25 | 10.60 | 8.37 | 6.86 | 6.02 |
+| 1024 | 74.13 | 87.03 | 67.27 | 60.59 | 55.85 |
+| 2048 | 838.43 | 706.62 | 594.97 | 523.48 | 461.99 |
+
+**Observations**
+
+- Performance rises steadily with block size at every n. At n=2048, `blocked256`
+  is ×1.81 faster than `reordered`, against ×1.42 for `blocked64` in Run 2.
+- At n=512, `blocked256` (44.6) and `reordered` (43.0) are within noise of each
+  other. With only two tiles per dimension, blocking changes little at that size.
+- Small tiles lose. `blocked32` is slower than `reordered` at n=512 and n=1024 and
+  only pulls ahead at n=2048. Its inner `j` loop is 32 floats, or 4 AVX2
+  iterations, so the vector loop's setup and remainder cost a large share of each
+  pass.
+- A likely explanation for larger tiles winning: a 256 x 256 tile is 256 KB, so
+  one tile each of A, B and C (768 KB) probably fits in the CPU's mid-level cache,
+  and the longer inner loop amortises loop overhead. The cache sizes of this CPU
+  have not been checked, so this is a hypothesis, not a measurement.
+- `reordered` and `blocked64` agree with Run 2 to within about 5%, so the runs are
+  consistent with each other.
+
+**Next**
+
+- The trend had not peaked at 256. Try 512 and 1024 to find where it turns over.
+- Try non-square tiles, for example small in i and p but the full width in j, to
+  give the inner loop the longest possible contiguous run.
