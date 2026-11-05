@@ -130,6 +130,7 @@ Same machine, compiler and build settings as Run 1.
 
 - Performance rises steadily with block size at every n. At n=2048, `blocked256`
   is ×1.81 faster than `reordered`, against ×1.42 for `blocked64` in Run 2.
+  > **Note (Run 8):** with row padding the trend is not steady: 128 is slower than 64 at n=1024 and 2048, and 512 is best.
 - At n=512, `blocked256` (44.6) and `reordered` (43.0) are within noise of each
   other. With only two tiles per dimension, blocking changes little at that size.
 - Small tiles lose. `blocked32` is slower than `reordered` at n=512 and n=1024 and
@@ -185,10 +186,12 @@ Same machine, compiler and build settings as Run 1.
   n=2048. At n=4096, `blocked512` is 3% ahead, which is within run-to-run noise.
   Together with Run 3 (32 to 256 rising steadily), performance peaks at 256 and
   falls off above it.
+  > **Note (Run 7):** this holds for the unpadded layout only; with row padding, `blocked512` is fastest at n=2048.
 - Going larger costs performance. At n=2048, `blocked512` falls to 24.7 GFLOP/s,
   a third below `blocked256`. A 512 x 512 tile is 1 MB, so one tile each of A, B
   and C (3 MB) probably no longer fits in the cache level that 256 x 256 tiles
   benefit from. Not yet measured; cache sizes for this CPU have not been checked.
+  > **Corrected in Run 7:** padding removes most of this drop, so it was mainly conflict misses, not cache capacity.
 - `blocked1024` at n=1024 is a single tile covering the whole matrix, so it is
   `reordered` with extra loop overhead. As expected, it matches `reordered`
   (29.3 vs 30.1 GFLOP/s).
@@ -335,6 +338,7 @@ in `MATMUL_PAD_ROWS`.
   yet they showed no slowdown in Runs 3 and 4. So the conflict effect depends on
   more than the stride being a multiple of 4 KB, probably how many tile rows map
   to the same cache sets at each size. Not investigated further here.
+  > **Note (Run 7):** over three rounds, padding does help at n=2048 (`blocked256` 37.9 vs 33.7 GFLOP/s, `blocked512` ×1.72), so this single measurement understated it.
 - With padding, `blocked256` holds 36-39 GFLOP/s from n=1024 to n=4100, roughly
   flat across a 64x increase in work per multiply.
 - This supports the conflict-miss explanation from Run 5: changing only where rows
@@ -420,5 +424,72 @@ necessarily hold for the padded layout, which is now the default.
 
 - Rerun the block-size sweep (32 to 1024 at n = 1024, 2048 and 4096) on the
   padded build to find the real best tile size.
+- Measure cache misses directly (e.g. `perf stat` under WSL) to confirm the
+  conflict-miss vs capacity explanation.
+
+## Run 8: block-size sweep with row padding (2026-11-05)
+
+Reruns the block-size sweep from Runs 3 and 4 on the padded layout, as Run 7
+recommended, to find the best tile size now that conflict misses are removed.
+
+**Setup**
+
+Same machine and compiler as Run 1.
+
+| | |
+|---|---|
+| Commit | `cc315b5` (only `results/results.md` modified; code unchanged) |
+| Build | `build/`: `MATMUL_PAD_ROWS=ON`, `MATMUL_NATIVE=ON`, Release |
+| Kernels | `reordered` (reference), `multiply_blocked` with square tiles of 32, 64, 128, 256, 512 and 1024 |
+| Sizes | n = 1024, 2048, 4096 |
+| Repeats | 5 per point, plus 1 warm-up. One round; Run 7 put round-to-round variation at about 1 GFLOP/s. |
+
+**Results (GFLOP/s, higher is better)**
+
+| n | reordered | blocked32 | blocked64 | blocked128 | blocked256 | blocked512 | blocked1024 |
+|---|---|---|---|---|---|---|---|
+| 1024 | 31.50 | 24.27 | 37.78 | 34.52 | 38.94 | **41.48** | 29.64 |
+| 2048 | 20.00 | 24.63 | 36.44 | 34.04 | 37.80 | **41.14** | 25.87 |
+| 4096 | 10.73 | 24.45 | 33.32 | 33.72 | 37.10 | **40.35** | 23.66 |
+
+**Median times (ms)**
+
+| n | reordered | blocked32 | blocked64 | blocked128 | blocked256 | blocked512 | blocked1024 |
+|---|---|---|---|---|---|---|---|
+| 1024 | 68.18 | 88.49 | 56.85 | 62.21 | 55.15 | 51.78 | 72.45 |
+| 2048 | 859.04 | 697.47 | 471.41 | 504.70 | 454.55 | 417.57 | 664.11 |
+| 4096 | 12810.20 | 5621.34 | 4124.85 | 4076.30 | 3704.10 | 3406.38 | 5809.36 |
+
+**Observations**
+
+- With padding, the best tile size is 512, at every size tested: 41.5, 41.1 and
+  40.3 GFLOP/s. `blocked256` is second at all three (37-39). This replaces the
+  "256 is best" result from Runs 3 and 4, which was measured on the unpadded
+  layout.
+- `blocked512` is nearly flat from n=1024 to n=4096 (41.5 to 40.3 GFLOP/s), a 64x
+  increase in work per multiply. At n=4096 it is ×3.76 faster than `reordered`
+  (3.4 s against 12.8 s).
+- `blocked1024` is the slowest large tile, and falls as n grows (29.6, 25.9,
+  23.7). This fits Run 7's finding that it is capacity-limited: three 1024 x 1024
+  tiles come to about 12 MB. At n=1024 it is a single tile, and matches
+  `reordered` (29.6 vs 31.5) as in Run 4.
+- `blocked32` is stuck at about 24 GFLOP/s at every size. Its 32-float inner loop
+  (4 AVX2 iterations) seems to cap it at a fixed fraction of the faster kernels,
+  independent of n.
+- Padding does not help `reordered`: 10.7 GFLOP/s at n=4096 here, against 10.4
+  unpadded in Run 5. As Run 5 found, it misses cache on almost every access anyway.
+
+**Open questions**
+
+- `blocked128` is slower than `blocked64` at n=1024 (34.5 vs 37.8) and n=2048
+  (34.0 vs 36.4), against the trend either side of it. The gap is larger than the
+  ~1 GFLOP/s round-to-round variation seen in Run 7, but this is a single round.
+  Rerun before trying to explain it.
+- Whether a tile size between 512 and 1024 (e.g. 768), or non-square tiles, would
+  beat 512.
+
+**Next**
+
+- Rerun 64 vs 128 at n=1024 and n=2048 over several rounds.
 - Measure cache misses directly (e.g. `perf stat` under WSL) to confirm the
   conflict-miss vs capacity explanation.
