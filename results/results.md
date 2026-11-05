@@ -207,3 +207,65 @@ Same machine, compiler and build settings as Run 1.
   tile can map to the same cache sets and evict each other (cache conflict
   misses). Not yet tested. Comparing n=4000 or n=4100 against n=4096 would
   confirm or rule it out.
+
+## Run 5: power-of-two size test, n = 4000 vs 4096 vs 4100 (2026-11-05)
+
+Tests the second open question from Run 4: is the drop at n=4096 caused by the
+power-of-two row length rather than by the matrix size?
+
+**Setup**
+
+Same machine, compiler and build settings as Run 1.
+
+| | |
+|---|---|
+| Commit | `b833c4f` (working copy clean) |
+| Kernels | `blocked256` (best tile size from Runs 3 and 4), `reordered` (reference) |
+| Sizes | n = 4000, 4096, 4100. Row lengths are 16,000, 16,384 (exactly 2¹⁴) and 16,400 bytes. |
+| Repeats | 5 per point, plus 1 warm-up |
+
+GFLOP/s already divides by the work (2n³), so the three sizes compare directly.
+
+**Results**
+
+| n | blocked256 (GFLOP/s) | blocked256 (ms) | reordered (GFLOP/s) | reordered (ms) |
+|---|---|---|---|---|
+| 4000 | **38.94** | 3286.93 | 10.72 | 11943.60 |
+| 4096 | **19.29** | 7126.50 | 10.41 | 13201.40 |
+| 4100 | **32.65** | 4222.07 | 10.03 | 13741.80 |
+
+**Observations**
+
+- Confirmed for `blocked256`: n=4096 is a slow outlier. It has only about 5% more
+  elements than n=4000 yet takes ×2.2 as long, and GFLOP/s halves (38.9 to 19.3).
+  It mostly recovers at n=4100.
+- At n=4000, `blocked256` runs at 38.9 GFLOP/s, in line with n=1024 and n=2048
+  (37-40 GFLOP/s). The drop to 22 GFLOP/s at n=4096 in Run 4 came from the
+  power-of-two size, not from the matrices being large: blocked performance is
+  flat up to at least n=4000.
+- Likely mechanism: with 16,384-byte rows, the rows of a tile start at addresses
+  that map to the same cache sets, so they evict each other even when the rest of
+  the cache has room (conflict misses). At n=4000 consecutive rows are spread
+  across different sets. n=4100 is only 4 floats off a power of two, which may be
+  why it recovers most but not all of the way. This is inferred from timings;
+  cache misses have not been measured directly (e.g. with `perf stat` under WSL).
+- `reordered` hardly changes (10.0-10.7 GFLOP/s at all three sizes). At these
+  sizes it misses cache on nearly every access anyway, so extra conflict misses
+  make little difference. The effect only shows once blocking has removed the
+  other misses.
+
+**Noise**
+
+- `reordered` at n=4096 ran at 10.41 GFLOP/s here and 8.40 in Run 4, about 20%
+  apart on identical code. Long runs on this laptop vary more than short ones,
+  probably from thermal throttling or scheduling across performance and
+  efficiency cores. The ×2 effect for `blocked256` is well outside this range.
+
+**Next**
+
+- Fix: pad each row so the stride is not a power of two (e.g. 4096 + 16 floats),
+  the "leading dimension" approach used by BLAS libraries. Give `Matrix` a row
+  stride separate from `cols`, then rerun this comparison to check the n=4096
+  slowdown disappears.
+- Rerun `blocked512` vs `blocked1024` at n=2048 (the first open question from
+  Run 4).
