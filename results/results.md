@@ -346,3 +346,79 @@ in `MATMUL_PAD_ROWS`.
 - Rerun `blocked512` vs `blocked1024` at n=2048 (open since Run 4).
 - Measure cache misses directly (e.g. `perf stat` under WSL) to confirm the
   conflict-miss explanation, rather than inferring it from timings.
+
+## Run 7: blocked512 vs blocked1024 at n=2048, repeated (2026-11-05)
+
+Repeats the first open question from Run 4, where `blocked1024` (27.5 GFLOP/s)
+beat `blocked512` (24.7) at n=2048 against the overall trend. That was a single
+measurement on an unpadded build, so this run repeats it three times, on both the
+unpadded layout Run 4 used and the padded layout from Run 6.
+
+**Setup**
+
+Same machine and compiler as Run 1.
+
+| | |
+|---|---|
+| Commit | `825ebcf` (working copy clean) |
+| Builds | `build-nopad/` (`MATMUL_PAD_ROWS=OFF`, the layout Run 4 used) and `build/` (`MATMUL_PAD_ROWS=ON`). Both `MATMUL_NATIVE=ON`, Release. |
+| Kernels | `blocked512`, `blocked1024`, plus `blocked256` for reference |
+| n | 2048 |
+| Repeats | 3 rounds. Each round runs every kernel on both builds; each figure is the median of 5 timed runs after 1 warm-up. |
+
+**Results (GFLOP/s, higher is better)**
+
+| Build | Round | blocked256 | blocked512 | blocked1024 |
+|---|---|---|---|---|
+| unpadded | 1 | 32.68 | 23.86 | 26.14 |
+| unpadded | 2 | 33.90 | 23.61 | 25.97 |
+| unpadded | 3 | 34.50 | 23.98 | 27.04 |
+| **unpadded** | **mean** | **33.69** | **23.82** | **26.38** |
+| padded | 1 | 37.73 | 41.44 | 24.84 |
+| padded | 2 | 37.95 | 40.71 | 25.24 |
+| padded | 3 | 38.13 | 40.41 | 25.00 |
+| **padded** | **mean** | **37.94** | **40.85** | **25.03** |
+
+**Median times (ms), mean of the 3 rounds**
+
+| Build | blocked256 | blocked512 | blocked1024 |
+|---|---|---|---|
+| unpadded | 510.11 | 721.40 | 651.41 |
+| padded | 452.89 | 420.58 | 686.48 |
+
+**Observations**
+
+- The Run 4 result is reproducible, not noise. On the unpadded build,
+  `blocked1024` beat `blocked512` in all three rounds (26.4 vs 23.8 GFLOP/s on
+  average), and each kernel varied by only about 1 GFLOP/s between rounds.
+- Padding transforms `blocked512`: 23.8 to 40.9 GFLOP/s (×1.72). With padding it
+  is the fastest kernel at n=2048, ahead of `blocked256` (37.9).
+- **Correction to Run 4.** Run 4 suggested `blocked512` dropped at n=2048 because
+  three 512 x 512 tiles (3 MB) no longer fit in cache. Padding changes only where
+  rows start in memory, not how much data each tile holds, yet it removes the
+  drop. So the drop was mainly conflict misses (rows of a tile competing for the
+  same cache sets), the same effect as at n=4096 in Runs 5 and 6, not a capacity
+  limit. It is plausibly worse for 512 than 256 because a taller tile puts more
+  rows into the same sets. Inferred from timings; not measured.
+- `blocked1024` is the opposite case: about 25 GFLOP/s with or without padding.
+  Three 1024 x 1024 tiles come to about 12 MB, so it is limited by cache capacity,
+  which padding cannot fix. The two kernels now separate the two causes: 512 was
+  limited by conflicts, 1024 by capacity.
+- This also explains the Run 6 puzzle of why unpadded n=2048 seemed unaffected.
+  It was affected, but only mildly with 256-row tiles: `blocked256` is 37.9
+  GFLOP/s padded against 33.7 unpadded here. (Run 6 measured 37.5 vs 36.3 at
+  this size, a smaller gap; run-to-run variation on this laptop is a few
+  GFLOP/s.)
+
+**Consequence**
+
+The best-tile-size conclusion from Runs 3 and 4 ("256 is best") was measured on
+the unpadded layout, where conflict misses penalise tall tiles. It does not
+necessarily hold for the padded layout, which is now the default.
+
+**Next**
+
+- Rerun the block-size sweep (32 to 1024 at n = 1024, 2048 and 4096) on the
+  padded build to find the real best tile size.
+- Measure cache misses directly (e.g. `perf stat` under WSL) to confirm the
+  conflict-miss vs capacity explanation.
