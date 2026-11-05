@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: pip install -r python/requirements.txt
+
+      # No -DMATMUL_NATIVE here: CI checks correctness, not speed, and
+      # -march=native would tie the build to whatever CPU the runner has.
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: C++ tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Python tests (kernels vs NumPy)
+        run: pytest -v
